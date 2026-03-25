@@ -1,94 +1,59 @@
 #pragma once
 
 #include <QtCore/QObject>
-#include <QtCore/QProcess>
-#include <QtCore/QTimer>
-#include <QtCore/QJsonArray>
-#include <QtCore/QJsonObject>
-#include <QtCore/QElapsedTimer>
-#include <QtCore/QMutex>
-#include <QtGui/QImage>
+#include <QtCore/QVariantList>
+#include <vector>
+#include <string>
 
-class YOLODetector : public QObject
+// Conditional OpenCV includes
+#ifdef HAVE_OPENCV
+#include <opencv2/dnn.hpp>
+#include <opencv2/imgproc.hpp>
+#endif
+
+struct Detection {
+    QString className;
+    float confidence;
+    int x1, y1, x2, y2;
+    int centerX, centerY;
+};
+
+class YoloDetector : public QObject
 {
     Q_OBJECT
-    QML_ELEMENT
-
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged)
-    Q_PROPERTY(QJsonArray detections READ detections NOTIFY detectionsChanged)
-    Q_PROPERTY(double confidence READ confidence WRITE setConfidence NOTIFY confidenceChanged)
-    Q_PROPERTY(QString status READ status NOTIFY statusChanged)
-    Q_PROPERTY(QString modelPath READ modelPath WRITE setModelPath NOTIFY modelPathChanged)
-    Q_PROPERTY(double fps READ fps NOTIFY fpsChanged)
-    Q_PROPERTY(int frameCount READ frameCount NOTIFY frameCountChanged)
+    Q_PROPERTY(float confidenceThreshold READ confidenceThreshold WRITE setConfidenceThreshold NOTIFY confidenceThresholdChanged)
 
 public:
-    explicit YOLODetector(QObject* parent = nullptr);
-    ~YOLODetector();
+    explicit YoloDetector(QObject* parent = nullptr);
+    ~YoloDetector();
 
-    // Property getters
-    bool enabled() const { return _enabled; }
-    QJsonArray detections() const { return _detections; }
-    double confidence() const { return _confidence; }
-    QString status() const { return _status; }
-    QString modelPath() const { return _modelPath; }
-    double fps() const { return _fps; }
-    int frameCount() const { return _frameCount; }
-
-public slots:
+    bool enabled() const { return m_enabled; }
     void setEnabled(bool enabled);
-    void setConfidence(double confidence);
-    void setModelPath(const QString &modelPath);
-    void processFrameBytes(const QByteArray& frameData, int width, int height, int strideBytes);
-    void processFrame(const QImage &frame);
+
+    float confidenceThreshold() const { return m_confThreshold; }
+    void setConfidenceThreshold(float threshold);
+
+    // Call this every new frame from GStreamer
+#ifdef HAVE_OPENCV
+    void processFrame(const cv::Mat& rgbFrame);
+#else
+    void processFrame(void* rgbFrame);
+#endif
 
 signals:
-    void enabledChanged();
-    void detectionsChanged();
-    void confidenceChanged();
-    void statusChanged();
-    void modelPathChanged();
-    void fpsChanged();
-    void frameCountChanged();
-    void errorOccurred(const QString &error);
-
-private slots:
-    void onProcessOutput();
-    void onProcessError();
-    void onProcessFinished(int exitCode, QProcess::ExitStatus exitStatus);
-    void onRestartTimer();
+    void enabledChanged(bool enabled);
+    void confidenceThresholdChanged(float threshold);
+    void detectionsUpdated(const QVariantList& detections);   // List of QVariantMap
 
 private:
-    void startProcess();
-    void stopProcess();
-    void sendFrame(const QImage &frame);
-    void sendFrameBytes(const QByteArray &frameData, int width, int height);
-    void parseOutput(const QByteArray &data);
-    void updateDetections(const QJsonArray& newDetections);
-    void updateFPS();
+    bool m_enabled = false;
+    float m_confThreshold = 0.45f;
+    std::vector<std::string> m_classNames;
 
-    // Process management
-    QProcess* _process;
-    QTimer* _restartTimer;
-    QString _pythonPath;
-    QString _scriptPath;
-    QString _modelPath;
-    double _confidence;
-    bool _enabled;
-    bool _processRunning;
-    QString _status;
+#ifdef HAVE_OPENCV
+    cv::dnn::Net m_net;
+#endif
 
-    // Statistics
-    QElapsedTimer _fpsTimer;
-    int _frameCount;
-    double _fps;
-    int _fpsFrameCount;
-
-    // Thread safety
-    QMutex _mutex;
-
-    // State
-    QJsonArray _detections;
-    QByteArray _outputBuffer;
-    bool _hasFrame;
+    QVariantList convertDetectionsToQML(const std::vector<Detection>& detections);
 };

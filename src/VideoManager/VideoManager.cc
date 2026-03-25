@@ -38,7 +38,6 @@ VideoManager::VideoManager(QObject* parent)
     : QObject(parent),
       _subtitleWriter(new SubtitleWriter(this)),
       _videoSettings(SettingsManager::instance()->videoSettings())
-// , _yoloInference(new YoloInference(this))
 {
     qCDebug(VideoManagerLog) << this;
 

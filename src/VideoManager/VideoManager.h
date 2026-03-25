@@ -5,8 +5,11 @@
 #include <QtCore/QRunnable>
 #include <QtCore/QSize>
 #include <QtQmlIntegration/QtQmlIntegration>
+// Add near top with other includes
+#include "YoloDetector.h"
 
-Q_DECLARE_LOGGING_CATEGORY(VideoManagerLog)
+// Inside class VideoManager:
+
 
 // Forward declarations only (no full includes here to avoid cycles)
 class QQuickWindow;
@@ -46,9 +49,6 @@ class VideoManager : public QObject
     Q_PROPERTY(QSize videoSize READ videoSize NOTIFY videoSizeChanged)
     Q_PROPERTY(QString imageFile READ imageFile NOTIFY imageFileChanged)
     Q_PROPERTY(QString uvcVideoSourceID READ uvcVideoSourceID NOTIFY uvcVideoSourceIDChanged)
-
-    // Optional YOLO property (uncomment when ready)
-    // Q_PROPERTY(YoloInference* yoloInference READ yoloInference CONSTANT)
 
 public:
     explicit VideoManager(QObject* parent = nullptr);
@@ -116,13 +116,11 @@ public:
     }
 
     void setfullScreen(bool on);
+    void onDetectionsUpdated(const QVariantList& detections);
 
     static bool gstreamerEnabled();
     static bool qtmultimediaEnabled();
     static bool uvcEnabled();
-
-    // Optional YOLO getter (uncomment when ready)
-    // YoloInference* yoloInference() const { return _yoloInference; }
 
 signals:
     void aspectRatioChanged();
@@ -139,13 +137,14 @@ signals:
     void streamingChanged();
     void uvcVideoSourceIDChanged();
     void videoSizeChanged();
-
+    void detectionsUpdated(const QVariantList& detections);
 private slots:
     void _communicationLostChanged(bool communicationLost);
     void _setActiveVehicle(Vehicle* vehicle);
     void _videoSourceChanged();
 
 private:
+    YoloDetector* m_yoloDetector = nullptr;
     void _initAfterQmlIsReady();
     void _initVideoReceiver(VideoReceiver* receiver, QQuickWindow* window);
     bool _updateAutoStream(VideoReceiver* receiver);
@@ -163,8 +162,6 @@ private:
     SubtitleWriter* _subtitleWriter = nullptr;
     VideoSettings* _videoSettings = nullptr;
 
-    // YoloInference* _yoloInference = nullptr;  // uncomment when ready
-
     bool _initialized = false;
     bool _initAfterQmlIsReadyDone = false;
     bool _fullScreen = false;
@@ -177,6 +174,8 @@ private:
     Vehicle* _activeVehicle = nullptr;
     QQuickWindow* _mainWindow = nullptr;
 };
+
+Q_DECLARE_LOGGING_CATEGORY(VideoManagerLog)
 
 /*===========================================================================*/
 

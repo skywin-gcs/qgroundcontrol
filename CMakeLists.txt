@@ -211,7 +211,6 @@ qt_standard_project_setup(
     SUPPORTS_UP_TO ${QGC_QT_MAXIMUM_VERSION}
     I18N_SOURCE_LANGUAGE en
 )
-# find_package(OpenCV REQUIRED COMPONENTS core imgproc dnn)
 
 # ----------------------------------------------------------------------------
 # QML Linting Configuration
