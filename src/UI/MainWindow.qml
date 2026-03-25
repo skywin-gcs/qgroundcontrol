@@ -104,7 +104,7 @@ ApplicationWindow {
     }
 
     function showPlanView() {
-        flyView.visible = false
+        flyView.visible = true
         planView.visible = true
         toolDrawer.visible = false
     }

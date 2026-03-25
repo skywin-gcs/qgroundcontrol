@@ -1,0 +1,175 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+
+import QGroundControl
+import QGroundControl.Controls
+import QGroundControl.FlightDisplay
+import QGroundControl.Palette
+import QGroundControl.ScreenTools
+
+Item {
+    id: _root
+    
+    property Item pipView
+    property Item pipState: videoPipState
+    property var videoSource: QGroundControl.videoManager
+    property int _track_rec_x: 0
+    property int _track_rec_y: 0
+
+    PipState {
+        id: videoPipState
+        pipView: _root.pipView
+        isDark: true
+
+        onWindowAboutToOpen: {
+            QGroundControl.videoManager.stopVideo()
+            videoStartDelay.start()
+        }
+
+        onWindowAboutToClose: {
+            QGroundControl.videoManager.stopVideo()
+            videoStartDelay.start()
+        }
+
+        onStateChanged: {
+            pipRect.x = videoPipState.pipRect.x
+            pipRect.y = videoPipState.pipRect.y
+            pipRect.width = videoPipState.pipRect.width
+            pipRect.height = videoPipState.pipRect.height
+        }
+    }
+
+    Timer {
+        id: videoStartDelay
+        interval: 1000
+        onTriggered: QGroundControl.videoManager.startVideo()
+    }
+
+    // Detection overlay
+    Item {
+        id: detectionOverlay
+        anchors.fill: parent
+        visible: QGroundControl.videoManager.yoloDetector && QGroundControl.videoManager.yoloDetector.enabled
+        z: 90
+
+        // Match video letterboxing based on FlightDisplayViewVideo fit math
+        property real vW: width
+        property real vH: height
+        property real offX: (width - vW) / 2
+        property real offY: (height - vH) / 2
+
+        Repeater {
+            model: QGroundControl.videoManager.yoloDetector ? QGroundControl.videoManager.yoloDetector.detections : []
+            delegate: Rectangle {
+                x: detectionOverlay.offX + (modelData.bbox[0] * detectionOverlay.vW)
+                y: detectionOverlay.offY + (modelData.bbox[1] * detectionOverlay.vH)
+                width: (modelData.bbox[2] - modelData.bbox[0]) * detectionOverlay.vW
+                height: (modelData.bbox[3] - modelData.bbox[1]) * detectionOverlay.vH
+                color: "green"
+                border.color: "white"
+                border.width: 2
+                radius: 3
+                z: 91
+
+                Text {
+                    anchors.top: parent.bottom
+                    anchors.left: parent.left
+                    anchors.margins: 2
+                    color: "white"
+                    font.pixelSize: 12
+                    font.bold: true
+                    text: modelData.class + " (" + (modelData.confidence * 100).toFixed(0) + "%)"
+                    Rectangle {
+                        anchors.fill: parent
+                        color: "black"
+                        z: -1
+                        opacity: 0.7
+                    }
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    onClicked: {
+                        console.log("Clicked detection:", modelData.class)
+                    }
+                }
+            }
+        }
+
+        // Detection info display
+        Rectangle {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 8
+            visible: QGroundControl.videoManager.yoloDetector
+            color: "black"
+            opacity: 0.8
+            radius: 5
+            width: 200
+            height: 60
+
+            Column {
+                anchors.fill: parent
+                anchors.margins: 8
+                spacing: 4
+
+                Text {
+                    color: "white"
+                    font.pixelSize: 12
+                    text: "YOLO Detector"
+                    font.bold: true
+                }
+
+                Text {
+                    color: "white"
+                    font.pixelSize: 10
+                    text: QGroundControl.videoManager.yoloDetector ? 
+                          ("Status: " + QGroundControl.videoManager.yoloDetector.status) : "Disabled"
+                }
+
+                Text {
+                    color: "white"
+                    font.pixelSize: 10
+                    text: QGroundControl.videoManager.yoloDetector ? 
+                          ("Objects: " + QGroundControl.videoManager.yoloDetector.detections.length) : "0 objects"
+                }
+            }
+        }
+    }
+
+    Rectangle {
+        id: pipRect
+        color: "black"
+        visible: videoPipState.pipVisible
+        border.color: qgcPal.globalTheme === QGCPalette.Light ? "black" : "white"
+        border.width: 1
+        z: videoPipState.pipVisible ? _root.z + 2 : _root.z
+
+        MouseArea {
+            anchors.fill: parent
+            drag.target: pipRect
+            onPressed: {
+                _track_rec_x = mouseX
+                _track_rec_y = mouseY
+            }
+            onPositionChanged: {
+                pipRect.x += mouseX - _track_rec_x
+                pipRect.y += mouseY - _track_rec_y
+                _track_rec_x = mouseX
+                _track_rec_y = mouseY
+            }
+            onReleased: {
+                videoPipState.pipRect = Qt.rect(pipRect.x, pipRect.y, pipRect.width, pipRect.height)
+            }
+        }
+
+        QGCButton {
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: 2
+            text: "X"
+            onClicked: videoPipState.pipVisible = false
+        }
+    }
+}

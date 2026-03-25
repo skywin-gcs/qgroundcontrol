@@ -129,205 +129,312 @@ Item {
                 ColumnLayout {
                     id: rightColumn
                     width: parent.width
-                    spacing: 16
+                    spacing: 12
+
+                // ═══════════════════════════════════════════════════════
+                //                    TELEMETRY DASHBOARD
+                // ═══════════════════════════════════════════════════════
 
                 Text {
-                    text: "Vehicle Controls"
+                    text: "✈ TELEMETRY"
+                    color: "#00d2d3"
+                    font.pixelSize: 18
+                    font.bold: true
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                // Main flight data grid
+                GridLayout {
+                    columns: 2
+                    Layout.fillWidth: true
+                    rowSpacing: 6
+                    columnSpacing: 12
+
+                    // Row 1 - Core data
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "ALTITUDE"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.altitudeRelative.valueString) : "--" + " m"
+                                color: "#00d2d3"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "SPEED (H)"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.groundSpeed.valueString) : "--" + " m/s"
+                                color: "#feca57"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+
+                    // Row 2
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "SPEED (V)"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.climbRate.valueString) : "--" + " m/s"
+                                color: "#ff9f43"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "HEADING"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.heading.valueString + "°") : "--°"
+                                color: "#a29bfe"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+
+                    // Row 3
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "DISTANCE"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.distanceToHome.valueString) : "--" + " m"
+                                color: "#fd79a8"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "BATTERY"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.battery.percentRemaining.valueString + "%") : "--%"
+                                color: _activeVehicle && _activeVehicle.battery.percentRemaining.value > 20 ? "#2ecc71" : "#e74c3c"
+                                font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+
+                    // Row 4 - GPS & Signal
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "GPS SATELLITES"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.gps.count.value) : "--"
+                                color: _activeVehicle && _activeVehicle.gps.count.value > 5 ? "#2ecc71" : "#e74c3c"
+                                font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "RSSI"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle && _activeVehicle.linkManager && _activeVehicle.linkManager.activeLink ? _activeVehicle.linkManager.activeLink.rssi.valueString : "--"
+                                color: "#ffeaa7"; font.pixelSize: 16; font.bold: true
+                            }
+                        }
+                    }
+
+                    // Row 5 - Flight mode & Status
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "FLIGHT MODE"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? _activeVehicle.flightMode : "N/A"
+                                color: "#74b9ff"; font.pixelSize: 14; font.bold: true
+                            }
+                        }
+                    }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 50
+                        color: "#1a1a2e"
+                        radius: 8
+                        Column {
+                            anchors.centerIn: parent
+                            Text { text: "ARMED STATUS"; color: "#666"; font.pixelSize: 10; font.bold: true }
+                            Text {
+                                text: _activeVehicle ? (_activeVehicle.armed ? "ARMED" : "DISARMED") : "N/A"
+                                color: _activeVehicle && _activeVehicle.armed ? "#e74c3c" : "#2ecc71"
+                                font.pixelSize: 14; font.bold: true
+                            }
+                        }
+                    }
+                }
+
+                // ═══════════════════════════════════════════════════════
+                //                      CONTROLS
+                // ═══════════════════════════════════════════════════════
+
+                Text {
+                    text: "⚡ CONTROLS"
+                    color: "#00d2d3"
+                    font.pixelSize: 18
+                    font.bold: true
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.topMargin: 8
+                }
+
+                // ARM/DISARM Button
+                QGCButton {
+                    text: _activeVehicle ? (_activeVehicle.armed ? "DISARM" : "ARM") : "No Vehicle"
+                    enabled: _activeVehicle
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 50
+                    font.pixelSize: 16
+                    font.bold: true
+                    background: Rectangle {
+                        color: _activeVehicle && _activeVehicle.armed ? "#c0392b" : "#27ae60"
+                        radius: 10
+                    }
+                    onClicked: _activeVehicle.armed ? _activeVehicle.disarm() : _activeVehicle.arm()
+                }
+
+                // Recording Button
+                QGCButton {
+                    text: (QGroundControl.videoManager && QGroundControl.videoManager.recording) ? "⏹ Stop Recording" : "⏺ Start Recording"
+                    enabled: QGroundControl.videoManager && QGroundControl.videoManager.hasVideo
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 45
+                    background: Rectangle {
+                        color: (QGroundControl.videoManager && QGroundControl.videoManager.recording) ? "#e74c3c" : "#3498db"
+                        radius: 8
+                    }
+                    onClicked: {
+                        if (QGroundControl.videoManager) {
+                            if (QGroundControl.videoManager.recording) {
+                                QGroundControl.videoManager.stopRecording()
+                            } else {
+                                QGroundControl.videoManager.startRecording()
+                            }
+                        }
+                    }
+                }
+
+                // Flight Mode Selector
+                FlightModeMenu {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 45
+                    currentVehicle: _activeVehicle
+                }
+
+                // Guided Actions
+                Text {
+                    text: "Guided Actions"
                     color: "white"
-                    font.pixelSize: 20
+                    font.pixelSize: 14
+                    font.bold: true
+                    Layout.alignment: Qt.AlignHCenter
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    QGCButton {
+                        text: "RTL"
+                        enabled: _activeVehicle && guidedActionsController.showRTL
+                        Layout.fillWidth: true
+                        background: Rectangle { color: "#9b59b6"; radius: 6 }
+                        onClicked: guidedActionsController.confirmAction(guidedActionsController.actionRTL)
+                    }
+
+                    QGCButton {
+                        text: "Emergency"
+                        enabled: _activeVehicle
+                        Layout.fillWidth: true
+                        background: Rectangle { color: "#c0392b"; radius: 6 }
+                        onClicked: guidedActionsController.confirmAction(guidedActionsController.actionEmergencyStop)
+                    }
+                }
+
+                // Camera Controls
+                Text {
+                    text: "Camera"
+                    color: "white"
+                    font.pixelSize: 14
                     font.bold: true
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 QGCButton {
-                    text: _activeVehicle ? (_activeVehicle.armed ? "DISARM" : "ARM") : "No Vehicle"
-                    enabled: _activeVehicle
+                    text: "📷 Screenshot"
+                    enabled: QGroundControl.videoManager && QGroundControl.videoManager.hasVideo
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 60
-                    font.pixelSize: 18
-                    background: Rectangle {
-                        color: _activeVehicle && _activeVehicle.armed ? "#c0392b" : "#27ae60"
-                        radius: 12
-                    }
-                    onClicked: _activeVehicle.armed ? _activeVehicle.disarm() : _activeVehicle.arm()
-                }
-                QGCButton {
-                    text: QGroundControl.videoManager.recording ? "Stop Recording" : "Start Recording"
-                    enabled: QGroundControl.videoManager.hasVideo
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 50
+                    background: Rectangle { color: "#34495e"; radius: 6 }
                     onClicked: {
-                        if (QGroundControl.videoManager.recording) {
-                            QGroundControl.videoManager.stopRecording()
-                        } else {
-                            QGroundControl.videoManager.startRecording()
+                        if (QGroundControl.videoManager) {
+                            QGroundControl.videoManager.grabImage()
                         }
                     }
-                    background: Rectangle {
-                        color: QGroundControl.videoManager.recording ? "#e74c3c" : "#3498db"
-                        radius: 8
-                    }
                 }
 
-                FlightModeMenu {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: 50
-                    currentVehicle: _activeVehicle
-                }
-
+                // Joystick Status
                 Text {
                     text: "Joystick: " + (QGroundControl.joystickManager.activeJoystick ? "Connected" : "Disconnected")
                     color: QGroundControl.joystickManager.activeJoystick ? "#2ecc71" : "#e74c3c"
                     Layout.alignment: Qt.AlignHCenter
                 }
 
+                // Virtual Joystick
                 Loader {
                     id: virtualJoystickLoader
                     Layout.fillWidth: true
-                    Layout.preferredHeight: 200
+                    Layout.preferredHeight: 180
                     active: QGroundControl.settingsManager.appSettings.virtualJoystick.rawValue && _activeVehicle
                     source: "qrc:/qml/QGroundControl/FlyView/VirtualJoystick.qml"
                     property bool autoCenterThrottle: QGroundControl.settingsManager.appSettings.virtualJoystickAutoCenterThrottle.rawValue
                     property bool leftHandedMode: QGroundControl.settingsManager.appSettings.virtualJoystickLeftHandedMode.rawValue
                 }
 
-                Text {
-                    text: "Guided Actions"
-                    color: "white"
-                    font.pixelSize: 16
-                    font.bold: true
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    QGCButton {
-                        text: "Takeoff"
-                        enabled: _activeVehicle && guidedActionsController.showTakeoff
-                        Layout.fillWidth: true
-                        onClicked: guidedActionsController.confirmAction(guidedActionsController.actionTakeoff)
-                    }
-
-                    QGCButton {
-                        text: "Land"
-                        enabled: _activeVehicle && guidedActionsController.showLand
-                        Layout.fillWidth: true
-                        onClicked: guidedActionsController.confirmAction(guidedActionsController.actionLand)
-                    }
-
-                    QGCButton {
-                        text: "RTL"
-                        enabled: _activeVehicle && guidedActionsController.showRTL
-                        Layout.fillWidth: true
-                        onClicked: guidedActionsController.confirmAction(guidedActionsController.actionRTL)
-                    }
-                }
-
-                ComboBox {
-                    id: altitudeCombo
-                    Layout.fillWidth: true
-                    model: ["10m", "20m", "50m", "100m"]
-                    currentIndex: 0
-                    onCurrentTextChanged: {
-                        if (_activeVehicle) {
-                            var alt = parseFloat(currentText.replace('m', ''))
-                            guidedValueSlider.setValue(alt)
-                        }
-                    }
-                }
-
+                // Start Mission Button
                 QGCButton {
-                    text: "Pause"
-                    enabled: _activeVehicle && guidedActionsController.showPause
-                    Layout.fillWidth: true
-                    onClicked: guidedActionsController.confirmAction(guidedActionsController.actionPause)
-                }
-
-                QGCButton {
-                    text: "EMERGENCY STOP"
-                    enabled: _activeVehicle
-                    Layout.fillWidth: true
-                    background: Rectangle { color: "red" }
-                    onClicked: guidedActionsController.confirmAction(guidedActionsController.actionEmergencyStop)
-                }
-
-                Text {
-                    text: "Camera Controls"
-                    color: "white"
-                    font.pixelSize: 16
-                    font.bold: true
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    QGCButton {
-                        text: "Screenshot"
-                        enabled: QGroundControl.videoManager.hasVideo
-                        Layout.fillWidth: true
-                        onClicked: QGroundControl.videoManager.grabImage()
-                    }
-                }
-
-                ComboBox {
-                    id: speedCombo
-                    Layout.fillWidth: true
-                    model: ["1 m/s", "2 m/s", "5 m/s", "10 m/s"]
-                    currentIndex: 1
-                    onCurrentTextChanged: {
-                        if (_activeVehicle) {
-                            var speed = parseFloat(currentText.replace(' m/s', ''))
-                            // Set max speed or cruise speed, depending on mode
-                            // For simplicity, set a parameter if available
-                        }
-                    }
-                }
-
-                Text {
-                    text: "Vehicle Status"
-                    color: "white"
-                    font.pixelSize: 16
-                    font.bold: true
-                    Layout.alignment: Qt.AlignHCenter
-                }
-
-                GridLayout {
-                    columns: 2
-                    Layout.fillWidth: true
-
-                    Text { text: "Battery:"; color: "white" }
-                    Text {
-                        text: _activeVehicle ? (_activeVehicle.battery.percentRemaining.valueString + "%") : "N/A"
-                        color: _activeVehicle && _activeVehicle.battery.percentRemaining.value > 20 ? "green" : "red"
-                    }
-
-                    Text { text: "Altitude:"; color: "white" }
-                    Text {
-                        text: _activeVehicle ? (_activeVehicle.altitudeRelative.valueString + "m") : "N/A"
-                        color: "cyan"
-                    }
-
-                    Text { text: "Speed:"; color: "white" }
-                    Text {
-                        text: _activeVehicle ? (_activeVehicle.groundSpeed.valueString + "m/s") : "N/A"
-                        color: "yellow"
-                    }
-
-                    Text { text: "GPS:"; color: "white" }
-                    Text {
-                        text: _activeVehicle ? (_activeVehicle.gps.count.value + " sats") : "N/A"
-                        color: _activeVehicle && _activeVehicle.gps.count.value > 5 ? "green" : "red"
-                    }
-                }
-
-                QGCButton {
-                    text: "Start Mission"
+                    text: "🚀 Start Mission"
                     enabled: _activeVehicle && _missionController.readyForMission
                     Layout.fillWidth: true
+                    background: Rectangle { color: "#27ae60"; radius: 8 }
                     onClicked: _missionController.startMission()
                 }
 
