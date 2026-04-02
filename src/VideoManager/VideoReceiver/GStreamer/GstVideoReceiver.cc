@@ -17,6 +17,11 @@
 #include <QtQuick/QQuickItem>
 
 #include <gst/gst.h>
+#include <gst/app/gstappsink.h>
+
+#include <QImage>
+#include <QElapsedTimer>
+#include <QDateTime>
 
 QGC_LOGGING_CATEGORY(GstVideoReceiverLog, "Video.GstVideoReceiver")
 
@@ -41,6 +46,7 @@ GstVideoReceiver::~GstVideoReceiver()
 
 void GstVideoReceiver::start(uint32_t timeout)
 {
+    qCDebug(GstVideoReceiverLog) << "GstVideoReceiver::start" << _uri;
     if (_needDispatch()) {
         _worker->dispatch([this, timeout]() { start(timeout); });
         return;
@@ -1030,67 +1036,113 @@ bool GstVideoReceiver::_addVideoSink(GstPad *pad)
 {
     GstCaps *caps = gst_pad_query_caps(pad, nullptr);
 
-    (void) gst_object_ref(_videoSink); // gst_bin_add() will steal one reference
-    (void) gst_bin_add(GST_BIN(_pipeline), _videoSink);
+    _tee = gst_element_factory_make("tee", nullptr);
+    GstElement *displayQueue = gst_element_factory_make("queue", nullptr);
+    GstElement *appQueue = gst_element_factory_make("queue", nullptr);
+    GstElement *convert = gst_element_factory_make("videoconvert", nullptr);
+    _appSink = gst_element_factory_make("appsink", nullptr);
 
-    if (!gst_element_link(_decoder, _videoSink)) {
-        (void) gst_bin_remove(GST_BIN(_pipeline), _videoSink);
-        qCCritical(GstVideoReceiverLog) << "Unable to link video sink";
+    if (!_tee || !displayQueue || !appQueue || !convert || !_appSink) {
+        qCCritical(GstVideoReceiverLog) << "Failed to create elements for video pipeline";
+        gst_clear_object(&_tee);
+        gst_clear_object(&displayQueue);
+        gst_clear_object(&appQueue);
+        gst_clear_object(&convert);
+        gst_clear_object(&_appSink);
         gst_clear_caps(&caps);
         return false;
     }
+
+    gst_bin_add_many(GST_BIN(_pipeline), _tee, displayQueue, appQueue, convert, _appSink, nullptr);
+
+    // Link pad to tee
+    GstPad *teeSink = gst_element_get_static_pad(_tee, "sink");
+    gst_pad_link(pad, teeSink);
+    gst_clear_object(&teeSink);
+
+    // Display branch
+    (void) gst_object_ref(_videoSink);
+    (void) gst_bin_add(GST_BIN(_pipeline), _videoSink);
+    gst_element_link_many(_tee, displayQueue, _videoSink, nullptr);
+
+    // App branch
+    gst_element_link_many(_tee, appQueue, convert, _appSink, nullptr);
+
+    // Configure appsink
+    GstCaps *appCaps = gst_caps_from_string("video/x-raw,format=RGB,pixel-aspect-ratio=1/1");
+    gst_app_sink_set_caps(GST_APP_SINK(_appSink), appCaps);
+    gst_clear_caps(&appCaps);
+
+    g_object_set(_appSink, "emit-signals", TRUE, "sync", FALSE, nullptr);
+    g_signal_connect(_appSink, "new-sample", G_CALLBACK(_newSample), this);
 
     g_object_set(_videoSink,
                  "widget", _widget,
                  "sync", (_buffer >= 0),
                  NULL);
 
+    (void) gst_element_sync_state_with_parent(_tee);
+    (void) gst_element_sync_state_with_parent(displayQueue);
+    (void) gst_element_sync_state_with_parent(appQueue);
+    (void) gst_element_sync_state_with_parent(convert);
+    (void) gst_element_sync_state_with_parent(_appSink);
     (void) gst_element_sync_state_with_parent(_videoSink);
 
-    GST_DEBUG_BIN_TO_DOT_FILE(GST_BIN(_pipeline), GST_DEBUG_GRAPH_SHOW_ALL, "pipeline-with-videosink");
+    GstPad *sinkpad = gst_element_get_static_pad(_videoSink, "sink");
+    _videoSinkProbeId = gst_pad_add_probe(sinkpad, GST_PAD_PROBE_TYPE_BUFFER, _videoSinkProbe, this, nullptr);
+    gst_clear_object(&sinkpad);
 
     // Determine video size. Errors here are non-fatal.
     QSize videoSize;
     do {
-        if (!_decoderValve) {
-            qCCritical(GstVideoReceiverLog) << "Unable to determine video size - _decoderValve is NULL" << _uri;
-            break;
-        }
+        const GstStructure *structure = gst_caps_get_structure(caps, 0);
+        if (!structure) break;
 
-        GstPad *valveSrcPad = gst_element_get_static_pad(_decoderValve, "src");
-        if (!valveSrcPad) {
-            qCCritical(GstVideoReceiverLog) << "gst_element_get_static_pad() failed";
-            break;
-        }
-
-        GstCaps *valveSrcPadCaps = gst_pad_query_caps(valveSrcPad, nullptr);
-        if (!valveSrcPadCaps) {
-            qCCritical(GstVideoReceiverLog) << "gst_pad_query_caps() failed";
-            gst_clear_object(&valveSrcPad);
-            break;
-        }
-
-        const GstStructure *structure = gst_caps_get_structure(valveSrcPadCaps, 0);
-        if (!structure) {
-            qCCritical(GstVideoReceiverLog) << "Unable to determine video size - structure is NULL" << _uri;
-            gst_clear_object(&valveSrcPad);
-            break;
-        }
-
-        gint width = 0;
-        gint height = 0;
-        (void) gst_structure_get_int(structure, "width", &width);
-        (void) gst_structure_get_int(structure, "height", &height);
+        gint width = 0, height = 0;
+        gst_structure_get_int(structure, "width", &width);
+        gst_structure_get_int(structure, "height", &height);
         videoSize.setWidth(width);
         videoSize.setHeight(height);
-
-        gst_clear_caps(&valveSrcPadCaps);
-        gst_clear_object(&valveSrcPad);
     } while (false);
     _dispatchSignal([this, videoSize]() { emit videoSizeChanged(videoSize); });
 
     gst_clear_caps(&caps);
     return true;
+}
+
+GstFlowReturn GstVideoReceiver::_newSample(GstElement *sink, gpointer user_data)
+{
+    GstVideoReceiver *pThis = static_cast<GstVideoReceiver*>(user_data);
+    GstSample *sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
+    if (!sample) return GST_FLOW_OK;
+
+    GstBuffer *buffer = gst_sample_get_buffer(sample);
+    GstCaps *caps = gst_sample_get_caps(sample);
+    GstStructure *s = gst_caps_get_structure(caps, 0);
+
+    gint width, height;
+    gst_structure_get_int(s, "width", &width);
+    gst_structure_get_int(s, "height", &height);
+
+    GstMapInfo map;
+    if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+        // Limit to ~10 FPS for performance
+        static QElapsedTimer lastFrameTime;
+        if (!lastFrameTime.isValid() || lastFrameTime.elapsed() > 100) {
+            lastFrameTime.start();
+
+            QImage image(map.data, width, height, QImage::Format_RGB888);
+            QImage copied = image.copy(); // Copy because map.data is temporary
+
+            pThis->_dispatchSignal([pThis, copied]() {
+                emit pThis->videoFrameReady(copied);
+            });
+        }
+        gst_buffer_unmap(buffer, &map);
+    }
+
+    gst_sample_unref(sample);
+    return GST_FLOW_OK;
 }
 
 void GstVideoReceiver::_noteTeeFrame()

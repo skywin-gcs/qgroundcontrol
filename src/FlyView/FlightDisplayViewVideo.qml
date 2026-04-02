@@ -218,5 +218,62 @@ Item {
             }
             property int zoom: 0
         }
+
+        //-- YOLO Detection Overlay
+        Item {
+            id:                 detectionOverlay
+            anchors.fill:       parent
+            visible:            QGroundControl.videoManager.yoloDetector && QGroundControl.videoManager.yoloDetector.enabled
+
+            property var videoManager: QGroundControl.videoManager
+            property var yoloDetector: videoManager ? videoManager.yoloDetector : null
+            property var detections: videoManager ? videoManager.detections : []
+
+            Repeater {
+                model: detectionOverlay.detections || []
+
+                Rectangle {
+                    id:             detectionBox
+                    x:              modelData.x1 * parent.width / (videoManager.videoSize.width || parent.width)
+                    y:              modelData.y1 * parent.height / (videoManager.videoSize.height || parent.height)
+                    width:          (modelData.x2 - modelData.x1) * parent.width / (videoManager.videoSize.width || parent.width)
+                    height:         (modelData.y2 - modelData.y1) * parent.height / (videoManager.videoSize.height || parent.height)
+                    color:          "transparent"
+                    border.color:   "#00ff00"
+                    border.width:   2
+                    visible:        width > 0 && height > 0
+
+                    Rectangle {
+                        anchors.bottom:   parent.top
+                        anchors.left:     parent.left
+                        width:            labelText.implicitWidth + 8
+                        height:           labelText.implicitHeight + 4
+                        color:            "#00ff00"
+                        radius:           2
+
+                        Text {
+                            id:             labelText
+                            anchors.centerIn: parent
+                            text:             modelData.className + " " + Math.round(modelData.confidence * 100) + "%"
+                            color:            "black"
+                            font.pixelSize:   12
+                            font.bold:        true
+                        }
+                    }
+                }
+            }
+
+            // Detection count indicator
+            Text {
+                anchors.top:        parent.top
+                anchors.left:       parent.left
+                anchors.margins:    10
+                text:               detectionOverlay.detections ? detectionOverlay.detections.length + " objects detected" : ""
+                color:              "#00ff00"
+                font.pixelSize:     14
+                font.bold:          true
+                visible:            detectionOverlay.detections && detectionOverlay.detections.length > 0
+            }
+        }
     }
 }

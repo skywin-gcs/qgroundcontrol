@@ -63,4 +63,27 @@ Rectangle {
         anchors.fill:   parent
         fillMode:       VideoOutput.PreserveAspectCrop
     }
+
+    // Connect UVC video to YOLO detector
+    Connections {
+        target: _videoManager
+
+        function onIsUvcChanged() {
+            if (_videoManager.isUvc && _videoManager.yoloDetector) {
+                _videoManager.connectUVCToYolo(videoOutput)
+            } else {
+                _videoManager.disconnectUVCFromYolo()
+            }
+        }
+    }
+
+    Component.onCompleted: {
+        if (_videoManager.isUvc && _videoManager.yoloDetector) {
+            _videoManager.connectUVCToYolo(videoOutput)
+        }
+    }
+
+    Component.onDestruction: {
+        _videoManager.disconnectUVCFromYolo()
+    }
 }

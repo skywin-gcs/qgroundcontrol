@@ -11,6 +11,7 @@
 #include <QtMultimediaQuick/private/qquickvideooutput_p.h>
 #include <QtQuick/QQuickItem>
 #include <QtQuick/QQuickItemGrabResult>
+#include <QtCore/QElapsedTimer>
 
 QGC_LOGGING_CATEGORY(QtMultimediaReceiverLog, "Video.QtMultimediaReceiver")
 
@@ -135,7 +136,7 @@ void QtMultimediaReceiver::start(uint32_t timeout)
 {
     qCDebug(QtMultimediaReceiverLog) << Q_FUNC_INFO;
 
-    if (_mediaPlayer->isPlaying()) {
+    if (_mediaPlayer->playbackState() == QMediaPlayer::PlayingState) {
         qCDebug(QtMultimediaReceiverLog) << "Already running!";
         emit onStartComplete(STATUS_INVALID_STATE);
         return;
@@ -146,15 +147,18 @@ void QtMultimediaReceiver::start(uint32_t timeout)
         emit onStartComplete(STATUS_INVALID_URL);
         return;
     }
+
+    (void) connect(_mediaPlayer, &QMediaPlayer::errorOccurred, this, [](QMediaPlayer::Error error, const QString &errorString) {
+        qCWarning(QtMultimediaReceiverLog) << "QMediaPlayer error:" << error << errorString;
+    });
+
+    (void) connect(_mediaPlayer, &QMediaPlayer::mediaStatusChanged, this, [](QMediaPlayer::MediaStatus status) {
+        qCDebug(QtMultimediaReceiverLog) << "QMediaPlayer status changed:" << status;
+    });
+
     _mediaPlayer->setSource(QUrl::fromUserInput(_uri));
 
     _frameTimer.setInterval(timeout);
-
-    // QAbstractVideoBuffer *buffer = _videoSink->videoFrame()->videoBuffer();
-
-    /*if (!_mediaPlayer->hasVideo()) {
-        emit onStartComplete(STATUS_FAIL);
-    }*/
 
     _mediaPlayer->play();
 
@@ -196,29 +200,27 @@ void QtMultimediaReceiver::startDecoding(void *sink)
         return;
     }
 
-    if (_videoSink) {
-        qCWarning(QtMultimediaReceiverLog) << "VideoSink is already set";
+    QVideoSink* const videoSink = reinterpret_cast<QVideoSink*>(sink);
+    _mediaPlayer->setVideoOutput(videoSink);
+
+    if (_videoFrameUpdater) {
+        disconnect(_videoFrameUpdater);
     }
 
-    if (_videoSizeUpdater) {
-        qCWarning(QtMultimediaReceiverLog) << "VideoSizeConnection is already set";
-    }
-
-    _videoSink = reinterpret_cast<QVideoSink*>(sink);
-    _videoSizeUpdater = connect(_videoSink, &QVideoSink::videoSizeChanged, this, [this]() {
-        emit videoSizeChanged(_videoSink->videoSize());
-    });
-    _videoFrameUpdater = connect(_videoSink, &QVideoSink::videoFrameChanged, this, [this](const QVideoFrame &frame) {
+    _videoFrameUpdater = connect(videoSink, &QVideoSink::videoFrameChanged, this, [this](const QVideoFrame &frame) {
         if (frame.isValid()) {
             _frameTimer.start();
+            // Emit frame for object detection (limit to ~10 fps for performance)
+            static QElapsedTimer lastFrameTime;
+            if (!lastFrameTime.isValid() || lastFrameTime.elapsed() > 100) {
+                lastFrameTime.start();
+                QImage image = frame.toImage();
+                if (!image.isNull()) {
+                    emit videoFrameReady(image);
+                }
+            }
         }
     });
-    _rhi = _videoSink->rhi();
-    _videoSink->setSubtitleText("");
-
-    _mediaPlayer->setVideoSink(_videoSink);
-
-    qCDebug(QtMultimediaReceiverLog) << "Decoding";
 
     emit onStartDecodingComplete(STATUS_OK);
 }

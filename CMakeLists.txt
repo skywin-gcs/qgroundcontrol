@@ -62,9 +62,14 @@ endif()
 if(APPLE)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "${QGC_CONFIG_MACOS_DEPLOYMENT_TARGET}" CACHE STRING "macOS minimum deployment target")
     # iOS builds: set(CMAKE_OSX_SYSROOT "iphoneos")
-    if(QGC_MACOS_UNIVERSAL_BUILD)
-        # Universal binary for both Intel and Apple Silicon
+    if(QGC_MACOS_UNIVERSAL_BUILD AND NOT CMAKE_OSX_ARCHITECTURES)
+        # Only set universal archs if not already specified by user/preset/cache
+        # Homebrew libraries (OpenCV, etc.) are arm64-only and won't link for x86_64h
+        # To build universal, install universal OpenCV or set CMAKE_OSX_ARCHITECTURES=arm64
         set(CMAKE_OSX_ARCHITECTURES "x86_64h;arm64")
+        message(STATUS "Universal build enabled: ${CMAKE_OSX_ARCHITECTURES}")
+    elseif(CMAKE_OSX_ARCHITECTURES)
+        message(STATUS "Using existing CMAKE_OSX_ARCHITECTURES: ${CMAKE_OSX_ARCHITECTURES}")
     endif()
 endif()
 
@@ -274,6 +279,47 @@ include(Coverage)
 
 # Apply compiler warning configuration to QGC target
 qgc_apply_warning_flags()
+
+# ----------------------------------------------------------------------------
+# OpenCV Configuration (for YOLO Object Detection)
+# ----------------------------------------------------------------------------
+find_package(OpenCV QUIET)
+if(OpenCV_FOUND)
+    # On macOS, check architecture compatibility.
+    # Homebrew OpenCV is arm64-only; it cannot link into an x86_64h/universal build.
+    set(_opencv_compatible TRUE)
+    if(APPLE AND CMAKE_OSX_ARCHITECTURES MATCHES "x86_64")
+        message(STATUS "OpenCV ${OpenCV_VERSION} found but SKIPPED: arm64-only library is")
+        message(STATUS "  incompatible with x86_64 target (CMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES}).")
+        message(STATUS "  To enable YOLO: set CMAKE_OSX_ARCHITECTURES=arm64 (disable universal build)")
+        message(STATUS "  or install a universal OpenCV. Re-run cmake after changing the setting.")
+        set(_opencv_compatible FALSE)
+    endif()
+
+    if(_opencv_compatible)
+        message(STATUS "OpenCV ${OpenCV_VERSION} found - YOLO detection ENABLED")
+        target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE HAVE_OPENCV)
+        target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE ${OpenCV_INCLUDE_DIRS})
+        target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE ${OpenCV_LIBS})
+
+        # Bundle the YOLO model into the macOS app bundle Resources directory.
+        # The detector searches applicationDirPath()/../Resources/yolov8n.onnx at runtime.
+        if(APPLE AND EXISTS "${CMAKE_SOURCE_DIR}/resources/models/yolov8n.onnx")
+            target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+                "${CMAKE_SOURCE_DIR}/resources/models/yolov8n.onnx"
+            )
+            set_source_files_properties(
+                "${CMAKE_SOURCE_DIR}/resources/models/yolov8n.onnx"
+                PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+            )
+            message(STATUS "YOLO model will be bundled: resources/models/yolov8n.onnx -> Resources/")
+        elseif(NOT EXISTS "${CMAKE_SOURCE_DIR}/resources/models/yolov8n.onnx")
+            message(WARNING "YOLO model not found at resources/models/yolov8n.onnx - detection will be disabled at runtime")
+        endif()
+    endif()
+else()
+    message(STATUS "OpenCV not found - YOLO object detection disabled")
+endif()
 
 # ----------------------------------------------------------------------------
 # Platform-Specific Configuration

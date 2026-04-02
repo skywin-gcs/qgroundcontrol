@@ -94,6 +94,7 @@ private:
     static gboolean _filterParserCaps(GstElement *bin, GstPad *pad, GstElement *element, GstQuery *query, gpointer data);
     static GstPadProbeReturn _teeProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
     static GstPadProbeReturn _videoSinkProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
+    static GstFlowReturn _newSample(GstElement *sink, gpointer user_data);
     static GstPadProbeReturn _eosProbe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
     static GstPadProbeReturn _keyframeWatch(GstPad *pad, GstPadProbeInfo *info, gpointer user_data);
 
@@ -105,6 +106,7 @@ private:
     GstElement *_source = nullptr;
     GstElement *_tee = nullptr;
     GstElement *_videoSink = nullptr;
+    GstElement *_appSink = nullptr;
     GstVideoWorker *_worker = nullptr;
     gulong _teeProbeId = 0;
     gulong _videoSinkProbeId = 0;

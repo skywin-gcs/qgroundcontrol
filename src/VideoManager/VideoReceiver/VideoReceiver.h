@@ -67,6 +67,7 @@ signals:
     void recordingChanged(bool active);
     void recordingStarted(const QString &filename);
     void videoSizeChanged(QSize size);
+    void videoFrameReady(const QImage &frame);
 
     void sinkChanged(void *sink);
     void nameChanged(const QString &name);

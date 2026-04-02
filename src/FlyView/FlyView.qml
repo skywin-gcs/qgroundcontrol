@@ -6,29 +6,25 @@ import QtLocation
 import QtPositioning
 import QtQuick.Window
 import QtQml.Models
+import Qt.labs.settings 1.1
 import QGroundControl
 import QGroundControl.Controls
 import QGroundControl.FlyView
 import QGroundControl.FlightMap
 import QGroundControl.Toolbar
-// import QGroundControl.Viewer3D   // commented out - remove if not needed
-
+// import QGroundControl.Viewer3D // commented out - remove if not needed
 Item {
     id: _root
-
     readonly property bool _is3DMode: (typeof QGCViewer3DManager !== "undefined") &&
             QGCViewer3DManager.displayMode === QGCViewer3DManager.View3D
-
     // These should only be used by MainRootWindow
     property var planController: _planController
     property var guidedController: _guidedController
-
     PlanMasterController {
         id: _planController
         flyView: true
         Component.onCompleted: start()
     }
-
     property bool _mainWindowIsMap: !QGroundControl.videoManager.hasVideo
     property bool _isFullWindowItemDark: _mainWindowIsMap ? (typeof mapControl !== "undefined" ? mapControl.isSatelliteMap : true) : true
     property var _activeVehicle: QGroundControl.multiVehicleManager.activeVehicle
@@ -39,7 +35,9 @@ Item {
     property var _guidedController: (typeof guidedActionsController !== "undefined") ? guidedActionsController : null
     property var _guidedValueSlider: (typeof guidedValueSlider !== "undefined") ? guidedValueSlider : null
     property var _widgetLayer: (typeof widgetLayer !== "undefined") ? widgetLayer : null
-    property real _toolsMargin: ScreenTools.defaultFontPixelWidth * 0.75
+    property real _toolsMargin:    ScreenTools.defaultFontPixelWidth * 0.75
+    property real _widgetMargin:   _toolsMargin   // alias kept for compatibility
+    property real _fullItemZorder: QGroundControl.zOrderWidgets
     property rect _centerViewport: Qt.rect(0, 0, width, height)
     property real _rightPanelWidth: ScreenTools.defaultFontPixelWidth * 30
     property var _mapControl: (typeof mapControl !== "undefined") ? mapControl : null
@@ -47,19 +45,40 @@ Item {
     property var _stopRecording: (typeof stopRecording !== "undefined") ? stopRecording : null
     property var _takeScreenshot: (typeof takeScreenshot !== "undefined") ? takeScreenshot : null
 
+    // Iteration 04 (safe UI + persistence)
+    // Persist panel visibility/layout preferences across sessions.
+    property bool _showUsabilityStatusPanel: true
+    property bool _compactUsabilityStatusPanel: false
+    property bool _showQuickActionsPanel: true
+    property bool _compactQuickActionsPanel: false
+
+    Settings {
+        id: usabilityPanelPrefs
+        category: "FlyViewUsabilityPanel"
+
+        property bool showPanel: true
+        property bool compactPanel: false
+        property bool showQuickActionsPanel: true
+        property bool compactQuickActionsPanel: false
+    }
     function _calcCenterViewPort() {
         var newToolInset = Qt.rect(0, 0, width, height)
         if (typeof toolstrip !== "undefined" && toolstrip !== null) {
             toolstrip.adjustToolInset(newToolInset)
         }
     }
-
     function dropMainStatusIndicatorTool() {
         if (typeof toolbar !== "undefined" && toolbar !== null) {
             toolbar.dropMainStatusIndicatorTool();
         }
     }
 
+    Component.onCompleted: {
+        _showUsabilityStatusPanel = usabilityPanelPrefs.showPanel
+        _compactUsabilityStatusPanel = usabilityPanelPrefs.compactPanel
+        _showQuickActionsPanel = usabilityPanelPrefs.showQuickActionsPanel
+        _compactQuickActionsPanel = usabilityPanelPrefs.compactQuickActionsPanel
+    }
     QGCToolInsets {
         id: _toolInsets
         topEdgeLeftInset: toolbar.height
@@ -68,26 +87,21 @@ Item {
         leftEdgeBottomInset: 0
         bottomEdgeLeftInset: 0
     }
-
     // ──────────────────────────────────────────────────────────────
-    //               MAIN SPLIT-SCREEN LAYOUT
+    // MAIN SPLIT-SCREEN LAYOUT
     // ──────────────────────────────────────────────────────────────
-
     RowLayout {
         anchors.fill: parent
         spacing: 0
-
         // LEFT HALF: Video feed (or map if no video)
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-
             FlyViewVideo {
                 id: videoControl
                 anchors.fill: parent
                 visible: QGroundControl.videoManager.hasVideo
             }
-
             FlyViewMap {
                 id: mapControl
                 planMasterController: _planController
@@ -97,7 +111,6 @@ Item {
                 visible: !_is3DMode && !QGroundControl.videoManager.hasVideo
                 anchors.fill: parent
             }
-
             Loader {
                 id: viewer3DLoader
                 z: 1
@@ -110,7 +123,6 @@ Item {
                 }
             }
         }
-
         // RIGHT HALF: Controller panel
         Rectangle {
             Layout.preferredWidth: 380
@@ -119,22 +131,136 @@ Item {
             border.color: "#333333"
             border.width: 1
             Flickable {
-                anchors.fill: parent
-                anchors.margins: 16
-                contentHeight: rightColumn.implicitHeight
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
-                ScrollBar.vertical: ScrollBar { }
-
+                    anchors.fill: parent
+                    anchors.margins: 16
+                    contentWidth: width          // prevents horizontal layout recalculation loop
+                    contentHeight: rightColumn.implicitHeight
+                    clip: true
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { }
                 ColumnLayout {
                     id: rightColumn
                     width: parent.width
                     spacing: 12
 
-                // ═══════════════════════════════════════════════════════
-                //                    TELEMETRY DASHBOARD
-                // ═══════════════════════════════════════════════════════
+                    Rectangle {
+                        Layout.fillWidth: true
+                        color: "#1b1b1b"
+                        border.color: "#2f2f2f"
+                        border.width: 1
+                        radius: 8
 
+                        implicitHeight: statusControlColumn.implicitHeight + 12
+
+                        ColumnLayout {
+                            id: statusControlColumn
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 6
+
+                            Text {
+                                text: "🧭 Status Panel Controls"
+                                color: "#90caf9"
+                                font.pixelSize: 13
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                QGCButton {
+                                    text: _showUsabilityStatusPanel ? "Hide Status" : "Show Status"
+                                    Layout.fillWidth: true
+                                    onClicked: {
+                                        _showUsabilityStatusPanel = !_showUsabilityStatusPanel
+                                        usabilityPanelPrefs.showPanel = _showUsabilityStatusPanel
+                                    }
+                                }
+
+                                QGCButton {
+                                    text: _compactUsabilityStatusPanel ? "Switch to Full" : "Switch to Compact"
+                                    Layout.fillWidth: true
+                                    enabled: _showUsabilityStatusPanel
+                                    onClicked: {
+                                        _compactUsabilityStatusPanel = !_compactUsabilityStatusPanel
+                                        usabilityPanelPrefs.compactPanel = _compactUsabilityStatusPanel
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    FlyViewUsabilityStatusPanel {
+                        Layout.fillWidth: true
+                        visible: _showUsabilityStatusPanel
+                        compact: _compactUsabilityStatusPanel
+                    }
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        color: "#1b1b1b"
+                        border.color: "#2f2f2f"
+                        border.width: 1
+                        radius: 8
+
+                        implicitHeight: quickActionsControlColumn.implicitHeight + 12
+
+                        ColumnLayout {
+                            id: quickActionsControlColumn
+                            anchors.fill: parent
+                            anchors.margins: 6
+                            spacing: 6
+
+                            Text {
+                                text: "⚡ Quick Actions Controls"
+                                color: "#a5d6a7"
+                                font.pixelSize: 13
+                                font.bold: true
+                                Layout.fillWidth: true
+                            }
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                spacing: 8
+
+                                QGCButton {
+                                    text: _showQuickActionsPanel ? "Hide Quick Actions" : "Show Quick Actions"
+                                    Layout.fillWidth: true
+                                    onClicked: {
+                                        _showQuickActionsPanel = !_showQuickActionsPanel
+                                        usabilityPanelPrefs.showQuickActionsPanel = _showQuickActionsPanel
+                                    }
+                                }
+
+                                QGCButton {
+                                    text: _compactQuickActionsPanel ? "Switch to Full" : "Switch to Compact"
+                                    Layout.fillWidth: true
+                                    enabled: _showQuickActionsPanel
+                                    onClicked: {
+                                        _compactQuickActionsPanel = !_compactQuickActionsPanel
+                                        usabilityPanelPrefs.compactQuickActionsPanel = _compactQuickActionsPanel
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    FlyViewQuickActionsPanel {
+                        Layout.fillWidth: true
+                        visible: _showQuickActionsPanel
+                        compact: _compactQuickActionsPanel
+                        showHeader: true
+                        showFlightActions: true
+                        showVideoActions: true
+                        showDetectorActions: true
+                        showTelemetryActions: true
+                    }
+
+                // ═══════════════════════════════════════════════════════
+                // TELEMETRY DASHBOARD
+                // ═══════════════════════════════════════════════════════
                 Text {
                     text: "✈ TELEMETRY"
                     color: "#00d2d3"
@@ -142,14 +268,12 @@ Item {
                     font.bold: true
                     Layout.alignment: Qt.AlignHCenter
                 }
-
                 // Main flight data grid
                 GridLayout {
                     columns: 2
                     Layout.fillWidth: true
                     rowSpacing: 6
                     columnSpacing: 12
-
                     // Row 1 - Core data
                     Rectangle {
                         Layout.fillWidth: true
@@ -179,7 +303,6 @@ Item {
                             }
                         }
                     }
-
                     // Row 2
                     Rectangle {
                         Layout.fillWidth: true
@@ -209,7 +332,6 @@ Item {
                             }
                         }
                     }
-
                     // Row 3
                     Rectangle {
                         Layout.fillWidth: true
@@ -240,7 +362,6 @@ Item {
                             }
                         }
                     }
-
                     // Row 4 - GPS & Signal
                     Rectangle {
                         Layout.fillWidth: true
@@ -271,7 +392,6 @@ Item {
                             }
                         }
                     }
-
                     // Row 5 - Flight mode & Status
                     Rectangle {
                         Layout.fillWidth: true
@@ -303,11 +423,9 @@ Item {
                         }
                     }
                 }
-
                 // ═══════════════════════════════════════════════════════
-                //                      CONTROLS
+                // CONTROLS
                 // ═══════════════════════════════════════════════════════
-
                 Text {
                     text: "⚡ CONTROLS"
                     color: "#00d2d3"
@@ -316,7 +434,6 @@ Item {
                     Layout.alignment: Qt.AlignHCenter
                     Layout.topMargin: 8
                 }
-
                 // ARM/DISARM Button
                 QGCButton {
                     text: _activeVehicle ? (_activeVehicle.armed ? "DISARM" : "ARM") : "No Vehicle"
@@ -331,11 +448,12 @@ Item {
                     }
                     onClicked: _activeVehicle.armed ? _activeVehicle.disarm() : _activeVehicle.arm()
                 }
-
                 // Recording Button
                 QGCButton {
                     text: (QGroundControl.videoManager && QGroundControl.videoManager.recording) ? "⏹ Stop Recording" : "⏺ Start Recording"
-                    enabled: QGroundControl.videoManager && QGroundControl.videoManager.hasVideo
+                    enabled: QGroundControl.videoManager
+                             && QGroundControl.videoManager.decoding
+                             && !QGroundControl.videoManager.isUvc
                     Layout.fillWidth: true
                     Layout.preferredHeight: 45
                     background: Rectangle {
@@ -352,14 +470,12 @@ Item {
                         }
                     }
                 }
-
                 // Flight Mode Selector
                 FlightModeMenu {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 45
                     currentVehicle: _activeVehicle
                 }
-
                 // Guided Actions
                 Text {
                     text: "Guided Actions"
@@ -368,11 +484,9 @@ Item {
                     font.bold: true
                     Layout.alignment: Qt.AlignHCenter
                 }
-
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
                     QGCButton {
                         text: "RTL"
                         enabled: _activeVehicle && guidedActionsController.showRTL
@@ -380,7 +494,6 @@ Item {
                         background: Rectangle { color: "#9b59b6"; radius: 6 }
                         onClicked: guidedActionsController.confirmAction(guidedActionsController.actionRTL)
                     }
-
                     QGCButton {
                         text: "Emergency"
                         enabled: _activeVehicle
@@ -389,7 +502,6 @@ Item {
                         onClicked: guidedActionsController.confirmAction(guidedActionsController.actionEmergencyStop)
                     }
                 }
-
                 // Camera Controls
                 Text {
                     text: "Camera"
@@ -398,26 +510,24 @@ Item {
                     font.bold: true
                     Layout.alignment: Qt.AlignHCenter
                 }
-
                 QGCButton {
                     text: "📷 Screenshot"
                     enabled: QGroundControl.videoManager && QGroundControl.videoManager.hasVideo
                     Layout.fillWidth: true
                     background: Rectangle { color: "#34495e"; radius: 6 }
                     onClicked: {
-                        if (QGroundControl.videoManager) {
+                        if  (QGroundControl.videoManager) {
                             QGroundControl.videoManager.grabImage()
                         }
                     }
                 }
-
                 // Joystick Status
                 Text {
-                    text: "Joystick: " + (QGroundControl.joystickManager.activeJoystick ? "Connected" : "Disconnected")
-                    color: QGroundControl.joystickManager.activeJoystick ? "#2ecc71" : "#e74c3c"
+                    // joystickManager is a QML context property (not a QGroundControl sub-property)
+                    text: "Joystick: " + (typeof joystickManager !== "undefined" && joystickManager && joystickManager.activeJoystick ? "Connected" : "Disconnected")
+                    color: typeof joystickManager !== "undefined" && joystickManager && joystickManager.activeJoystick ? "#2ecc71" : "#e74c3c"
                     Layout.alignment: Qt.AlignHCenter
                 }
-
                 // Virtual Joystick
                 Loader {
                     id: virtualJoystickLoader
@@ -428,7 +538,6 @@ Item {
                     property bool autoCenterThrottle: QGroundControl.settingsManager.appSettings.virtualJoystickAutoCenterThrottle.rawValue
                     property bool leftHandedMode: QGroundControl.settingsManager.appSettings.virtualJoystickLeftHandedMode.rawValue
                 }
-
                 // Start Mission Button
                 QGCButton {
                     text: "🚀 Start Mission"
@@ -437,7 +546,6 @@ Item {
                     background: Rectangle { color: "#27ae60"; radius: 8 }
                     onClicked: _missionController.startMission()
                 }
-
                 Text {
                     text: "Advanced Controls"
                     color: "white"
@@ -445,18 +553,15 @@ Item {
                     font.bold: true
                     Layout.alignment: Qt.AlignHCenter
                 }
-
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-
                     QGCButton {
                         text: "Orbit"
                         enabled: _activeVehicle && guidedActionsController.showOrbit
                         Layout.fillWidth: true
                         onClicked: guidedActionsController.confirmAction(guidedActionsController.actionOrbit)
                     }
-
                     QGCButton {
                         text: "Change Alt"
                         enabled: _activeVehicle && guidedActionsController.showChangeAlt
@@ -464,44 +569,42 @@ Item {
                         onClicked: guidedActionsController.confirmAction(guidedActionsController.actionChangeAlt)
                     }
                 }
-
                 Item { Layout.fillHeight: true } // spacer
                 }
             }
         }
     }
-
     // ── Keep original overlays and toolbar on top ────────────────────────────
     FlyViewToolBar {
         id: toolbar
         guidedValueSlider: _guidedValueSlider
         visible: !QGroundControl.videoManager.fullScreen
     }
-
     FlyViewWidgetLayer {
         id: widgetLayer
-        anchors.top: parent.top
-        anchors.bottom: parent.bottom
-        anchors.left: parent.left
-        anchors.right: parent.right
-        anchors.margins: _widgetMargin
-        anchors.topMargin: toolbar.height + _widgetMargin
-        anchors.rightMargin: 380 + _widgetMargin  // Leave space for right panel
+        anchors.top:         parent.top
+        anchors.bottom:      parent.bottom
+        anchors.left:        parent.left
+        anchors.right:       parent.right
+        // Explicit individual margins – avoids anchors.margins overriding anchors.rightMargin
+        anchors.topMargin:   toolbar.height + _toolsMargin
+        anchors.leftMargin:  _toolsMargin
+        anchors.bottomMargin: _toolsMargin
+        anchors.rightMargin: 380 + _toolsMargin   // leave room for right control panel
         z: _fullItemZorder + 2
         parentToolInsets: _toolInsets
         mapControl: _mapControl
-        visible: !QGroundControl.videoManager.fullScreen && _mainWindowIsMap
+        // Show widget layer (toolstrip, guided-action overlays) whenever not in fullscreen
+        visible: !QGroundControl.videoManager.fullScreen
     }
-
     FlyViewCustomLayer {
         id: customOverlay
         anchors.fill: widgetLayer
         z: _fullItemZorder + 2
         parentToolInsets: widgetLayer.totalToolInsets
         mapControl: _mapControl
-        visible: !QGroundControl.videoManager.fullScreen && _mainWindowIsMap
+        visible: !QGroundControl.videoManager.fullScreen
     }
-
     FlyViewInsetViewer {
         id: widgetLayerInsetViewer
         anchors.top: parent.top
@@ -512,13 +615,11 @@ Item {
         insetsToView: widgetLayer.totalToolInsets
         visible: false
     }
-
     GuidedActionsController {
         id: guidedActionsController
         missionController: _missionController
         guidedValueSlider: _guidedValueSlider
     }
-
     GuidedValueSlider {
         id: guidedValueSlider
         anchors.right: parent.right

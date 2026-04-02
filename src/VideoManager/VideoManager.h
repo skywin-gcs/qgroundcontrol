@@ -49,6 +49,9 @@ class VideoManager : public QObject
     Q_PROPERTY(QSize videoSize READ videoSize NOTIFY videoSizeChanged)
     Q_PROPERTY(QString imageFile READ imageFile NOTIFY imageFileChanged)
     Q_PROPERTY(QString uvcVideoSourceID READ uvcVideoSourceID NOTIFY uvcVideoSourceIDChanged)
+    Q_PROPERTY(YoloDetector* yoloDetector READ yoloDetector CONSTANT)
+    Q_PROPERTY(QVariantList detections READ detections NOTIFY detectionsUpdated)
+    Q_PROPERTY(QVariantList videoReceivers READ videoReceivers CONSTANT)
 
 public:
     explicit VideoManager(QObject* parent = nullptr);
@@ -58,12 +61,24 @@ public:
 
     static VideoManager* instance();
 
+    YoloDetector* yoloDetector() { return m_yoloDetector; }
+    QVariantList detections() const { return _detections; }
+    QVariantList videoReceivers() const;
+
     // QML-callable methods
     Q_INVOKABLE void grabImage(const QString& imageFile = QString());
     Q_INVOKABLE void startRecording(const QString& videoFile = QString());
     Q_INVOKABLE void startVideo();
     Q_INVOKABLE void stopRecording();
     Q_INVOKABLE void stopVideo();
+
+    /// Called from FlightDisplayViewUVC.qml to connect the QML VideoOutput's
+    /// internal QVideoSink to the YOLO detector.  videoOutputItem must be the
+    /// QML VideoOutput object (QQuickVideoOutput in C++).
+    Q_INVOKABLE void connectUVCToYolo(QObject* videoOutputItem);
+
+    /// Disconnect the UVC → YOLO bridge (called when camera goes inactive).
+    Q_INVOKABLE void disconnectUVCFromYolo();
 
     void init(QQuickWindow* mainWindow);
     void cleanup();
@@ -118,6 +133,10 @@ public:
     void setfullScreen(bool on);
     void onDetectionsUpdated(const QVariantList& detections);
 
+    /// Set the decoding/streaming flags from external sources (e.g. UVC path).
+    void setDecodingActive(bool active);
+    void setStreamingActive(bool active);
+
     static bool gstreamerEnabled();
     static bool qtmultimediaEnabled();
     static bool uvcEnabled();
@@ -145,6 +164,7 @@ private slots:
 
 private:
     YoloDetector* m_yoloDetector = nullptr;
+    QMetaObject::Connection m_uvcYoloConnection;   ///< UVC camera → YOLO bridge
     void _initAfterQmlIsReady();
     void _initVideoReceiver(VideoReceiver* receiver, QQuickWindow* window);
     bool _updateAutoStream(VideoReceiver* receiver);
@@ -171,6 +191,7 @@ private:
     QSize _videoSize;
     QString _imageFile;
     QString _uvcVideoSourceID;
+    QVariantList _detections;
     Vehicle* _activeVehicle = nullptr;
     QQuickWindow* _mainWindow = nullptr;
 };

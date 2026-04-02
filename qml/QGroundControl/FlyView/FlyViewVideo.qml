@@ -33,37 +33,42 @@ property var videoSource: QGroundControl.videoManager
             }
         }
     }
-Row {
-    anchors.top: parent.top
-    anchors.right: parent.right
-    anchors.margins: 10
-    spacing: 10
-    z: 100
 
-    // Recording Status Indicator (Red Dot)
-    Rectangle {
-        width: 15; height: 15; radius: 7.5
-        color: "red"
-        visible: _root.videoSource.isRecording
-        SequentialAnimation on opacity {
-            loops: Animation.Infinite
-            NumberAnimation { from: 1; to: 0; duration: 500 }
-            NumberAnimation { from: 0; to: 1; duration: 500 }
+    // Recording controls overlay - only show in full screen mode
+    Row {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.margins: 10
+        spacing: 10
+        z: 100
+        visible: pipState.state === pipState.fullState
+
+        // Recording Status Indicator (Red Dot)
+        Rectangle {
+            width: 15; height: 15; radius: 7.5
+            color: "red"
+            visible: _root.videoSource.recording
+            SequentialAnimation on opacity {
+                loops: Animation.Infinite
+                NumberAnimation { from: 1; to: 0; duration: 500 }
+                NumberAnimation { from: 0; to: 1; duration: 500 }
+            }
         }
-    }
 
-    // Record Toggle Button
-    QGCButton {
-        text: _root.videoSource.isRecording ? qsTr("Stop Rec") : qsTr("Start Rec")
-        onClicked: {
-            if (_root.videoSource.isRecording) {
-                _root.videoSource.stopRecording()
-            } else {
-                _root.videoSource.startRecording()
+        // Record Toggle Button
+        QGCButton {
+            text: _root.videoSource.recording ? qsTr("Stop Rec") : qsTr("Start Rec")
+            enabled: _root.videoSource.decoding
+            onClicked: {
+                if (_root.videoSource.recording) {
+                    _root.videoSource.stopRecording()
+                } else {
+                    _root.videoSource.startRecording()
+                }
             }
         }
     }
-}
+
     Timer {
         id:           videoStartDelay
         interval:     2000;
@@ -73,13 +78,11 @@ Row {
     }
 
     //-- Video Streaming
-   //-- Video Streaming
     FlightDisplayViewVideo {
         id:             videoStreaming
         anchors.fill:   parent
         useSmallFont:   _root.pipState.state !== _root.pipState.fullState
-        // CHANGE THIS LINE:
-        visible:        _root.videoSource.isStreamSource 
+        visible:        QGroundControl.videoManager.isStreamSource
     }
     //-- UVC Video (USB Camera or Video Device)
     Loader {
@@ -109,18 +112,6 @@ Row {
             easing.type: Easing.InExpo
         }
     }
-    // Record Toggle Button
-QGCButton {
-    // Change isRecording to recording
-    text: _root.videoSource.recording ? qsTr("Stop Rec") : qsTr("Start Rec")
-    onClicked: {
-        if (_root.videoSource.recording) {
-            _root.videoSource.stopRecording()
-        } else {
-            _root.videoSource.startRecording()
-        }
-    }
-}
 
     OnScreenGimbalController {
         id:                      onScreenGimbalController
