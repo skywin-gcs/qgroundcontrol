@@ -49,10 +49,11 @@ VideoManager::VideoManager(QObject *parent)
     if (!_videoSettings) {
         qCCritical(VideoManagerLog) << "Failed to get VideoSettings from SettingsManager!";
     }
-    m_yoloDetector = new YoloDetector(this);
+    // YOLO disabled for this build
+    // m_yoloDetector = new YoloDetector(this);
     _subtitleWriter = new SubtitleWriter(this);
 
-    (void) connect(m_yoloDetector, &YoloDetector::detectionsUpdated, this, &VideoManager::onDetectionsUpdated);
+    // (void) connect(m_yoloDetector, &YoloDetector::detectionsUpdated, this, &VideoManager::onDetectionsUpdated);
 
     qCDebug(VideoManagerLog) << "VideoManager created";
 
@@ -424,12 +425,12 @@ bool VideoManager::isStreamSource() const
     const QString videoSource = _videoSettings->videoSource()->rawValue().toString();
     return (videoSourceList.contains(videoSource) || autoStreamConfigured());
 }
-void VideoManager::onDetectionsUpdated(const QVariantList& detections)
-{
-    qCDebug(VideoManagerLog) << "onDetectionsUpdated: Received" << detections.count() << "detections";
-    _detections = detections;
-    emit detectionsUpdated(detections);
-}
+// void VideoManager::onDetectionsUpdated(const QVariantList& detections)
+// {
+//     qCDebug(VideoManagerLog) << "onDetectionsUpdated: Received" << detections.count() << "detections";
+//     _detections = detections;
+//     emit detectionsUpdated(detections);
+// }
 
 QVariantList VideoManager::videoReceivers() const
 {
@@ -441,99 +442,18 @@ QVariantList VideoManager::videoReceivers() const
 }
 
 // ── UVC camera → YOLO bridge ─────────────────────────────────────────────────
+// YOLO disabled for this build
 
 void VideoManager::connectUVCToYolo(QObject* videoOutputItem)
 {
-    if (!m_yoloDetector || !videoOutputItem) {
-        qCWarning(VideoManagerLog) << "connectUVCToYolo: null argument";
-        return;
-    }
-
-    // The QML VideoOutput type maps to QQuickVideoOutput in C++.
-    QQuickVideoOutput* qvo = qobject_cast<QQuickVideoOutput*>(videoOutputItem);
-    if (!qvo) {
-        qCWarning(VideoManagerLog) << "connectUVCToYolo: object is not a QQuickVideoOutput";
-        return;
-    }
-
-    QVideoSink* sink = qvo->videoSink();
-    if (!sink) {
-        qCWarning(VideoManagerLog) << "connectUVCToYolo: QQuickVideoOutput has no videoSink";
-        return;
-    }
-
-    // Drop any previous UVC→YOLO connection.
-    if (m_uvcYoloConnection) {
-        disconnect(m_uvcYoloConnection);
-    }
-
-    // Connect new-frame notification.  We throttle to ≤10 fps to keep the
-    // YOLO inference from monopolising the main thread.
-    m_uvcYoloConnection = connect(
-        sink, &QVideoSink::videoFrameChanged,
-        this, [this](const QVideoFrame& frame) {
-            if (!frame.isValid()) return;
-
-            // Report video dimensions once per connection so that the QML
-            // bounding-box overlay can scale coordinates correctly.
-            static QSize s_lastSize;
-            const QSize frameSize(frame.width(), frame.height());
-            if (frameSize != s_lastSize) {
-                s_lastSize = frameSize;
-                _videoSize  = frameSize;
-                emit videoSizeChanged();
-                qCDebug(VideoManagerLog) << "UVC frame size:" << frameSize;
-            }
-
-            // Mark as decoding/streaming so the recording button enables.
-            if (!_decoding) {
-                _decoding   = true;
-                _streaming  = true;
-                emit decodingChanged();
-                emit streamingChanged();
-            }
-
-            // Throttle YOLO to ≤10 fps.
-            if (!m_yoloDetector || !m_yoloDetector->enabled()) return;
-
-            static QElapsedTimer s_lastYoloFrame;
-            if (s_lastYoloFrame.isValid() && s_lastYoloFrame.elapsed() < 100) return;
-            s_lastYoloFrame.start();
-
-            const QImage img = frame.toImage();
-            if (!img.isNull()) {
-                m_yoloDetector->processFrame(img);
-            }
-        },
-        Qt::QueuedConnection
-    );
-
-    // Auto-enable YOLO as soon as the camera is live.
-#ifdef HAVE_OPENCV
-    if (!m_yoloDetector->enabled()) {
-        m_yoloDetector->setEnabled(true);
-        qCDebug(VideoManagerLog) << "YOLO auto-enabled for UVC camera";
-    }
-#endif
-
-    qCDebug(VideoManagerLog) << "UVC VideoSink connected to YOLO detector";
+    Q_UNUSED(videoOutputItem)
+    // YOLO functionality disabled
 }
 
 void VideoManager::disconnectUVCFromYolo()
 {
-    if (m_uvcYoloConnection) {
-        disconnect(m_uvcYoloConnection);
-        m_uvcYoloConnection = {};
-        qCDebug(VideoManagerLog) << "UVC VideoSink disconnected from YOLO detector";
-    }
-
-    // Clear decoding/streaming flags set by the UVC path.
-    if (_decoding) {
-        _decoding  = false;
-        _streaming = false;
-        emit decodingChanged();
-        emit streamingChanged();
-    }
+    // YOLO functionality disabled
+    Q_UNUSED(m_uvcYoloConnection)
 }
 
 void VideoManager::setDecodingActive(bool active)
@@ -984,11 +904,10 @@ void VideoManager::_initVideoReceiver(VideoReceiver *receiver, QQuickWindow *win
         }
     });
 
-    (void) connect(receiver, &VideoReceiver::videoFrameReady, this, [this](const QImage& image) {
+    (void) connect(receiver, &VideoReceiver::videoFrameReady, this, [](const QImage& image) {
         qCDebug(VideoManagerLog) << "_newVideoFrame: Received frame of size" << image.size();
-        if (m_yoloDetector) {
-            m_yoloDetector->processFrame(image);
-        }
+        Q_UNUSED(image)
+        // YOLO disabled for this build
     });
 
     (void) connect(receiver, &VideoReceiver::videoStreamInfoChanged, this, [this, receiver]() {

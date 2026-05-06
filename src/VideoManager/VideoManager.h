@@ -5,8 +5,8 @@
 #include <QtCore/QRunnable>
 #include <QtCore/QSize>
 #include <QtQmlIntegration/QtQmlIntegration>
-// Add near top with other includes
-#include "YoloDetector.h"
+// YOLO disabled for this build
+// #include "YoloDetector.h"
 
 // Inside class VideoManager:
 
@@ -49,8 +49,8 @@ class VideoManager : public QObject
     Q_PROPERTY(QSize videoSize READ videoSize NOTIFY videoSizeChanged)
     Q_PROPERTY(QString imageFile READ imageFile NOTIFY imageFileChanged)
     Q_PROPERTY(QString uvcVideoSourceID READ uvcVideoSourceID NOTIFY uvcVideoSourceIDChanged)
-    Q_PROPERTY(YoloDetector* yoloDetector READ yoloDetector CONSTANT)
-    Q_PROPERTY(QVariantList detections READ detections NOTIFY detectionsUpdated)
+    // Q_PROPERTY(YoloDetector* yoloDetector READ yoloDetector CONSTANT)
+    // Q_PROPERTY(QVariantList detections READ detections NOTIFY detectionsUpdated)
     Q_PROPERTY(QVariantList videoReceivers READ videoReceivers CONSTANT)
 
 public:
@@ -61,8 +61,8 @@ public:
 
     static VideoManager* instance();
 
-    YoloDetector* yoloDetector() { return m_yoloDetector; }
-    QVariantList detections() const { return _detections; }
+    // YoloDetector* yoloDetector() { return m_yoloDetector; }
+    // QVariantList detections() const { return _detections; }
     QVariantList videoReceivers() const;
 
     // QML-callable methods
@@ -131,7 +131,7 @@ public:
     }
 
     void setfullScreen(bool on);
-    void onDetectionsUpdated(const QVariantList& detections);
+    // void onDetectionsUpdated(const QVariantList& detections);
 
     /// Set the decoding/streaming flags from external sources (e.g. UVC path).
     void setDecodingActive(bool active);
@@ -156,14 +156,14 @@ signals:
     void streamingChanged();
     void uvcVideoSourceIDChanged();
     void videoSizeChanged();
-    void detectionsUpdated(const QVariantList& detections);
+    // void detectionsUpdated(const QVariantList& detections);
 private slots:
     void _communicationLostChanged(bool communicationLost);
     void _setActiveVehicle(Vehicle* vehicle);
     void _videoSourceChanged();
 
 private:
-    YoloDetector* m_yoloDetector = nullptr;
+    // YoloDetector* m_yoloDetector = nullptr;
     QMetaObject::Connection m_uvcYoloConnection;   ///< UVC camera → YOLO bridge
     void _initAfterQmlIsReady();
     void _initVideoReceiver(VideoReceiver* receiver, QQuickWindow* window);
@@ -191,7 +191,7 @@ private:
     QSize _videoSize;
     QString _imageFile;
     QString _uvcVideoSourceID;
-    QVariantList _detections;
+    // QVariantList _detections;
     Vehicle* _activeVehicle = nullptr;
     QQuickWindow* _mainWindow = nullptr;
 };
